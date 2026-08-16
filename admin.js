@@ -6,7 +6,40 @@ const app=initializeApp(firebaseConfig),db=getFirestore(app),auth=getAuth(app);l
 const defaults=[{id:"default-r35",name:"Nissan GT-R R35",price:35000,type:"sport",image:"",status:"available",active:true},{id:"default-supra",name:"Toyota Supra MK4",price:30000,type:"jdm",image:"",status:"available",active:true},{id:"default-m4",name:"BMW M4",price:40000,type:"luxury",image:"",status:"available",active:true},{id:"default-huracan",name:"Lamborghini Huracan",price:50000,type:"sport",image:"",status:"available",active:true},{id:"default-s15",name:"Nissan Silvia S15",price:28000,type:"jdm",image:"",status:"available",active:true},{id:"default-amg",name:"Mercedes AMG GT",price:45000,type:"luxury",image:"",status:"available",active:true}];
 const money=n=>"Rp "+Number(n||0).toLocaleString("id-ID");
 onAuthStateChanged(auth,async u=>{if(u){loginScreen.classList.add("hidden");adminApp.classList.remove("hidden");await loadAll();renderAdmin()}else{loginScreen.classList.remove("hidden");adminApp.classList.add("hidden")}});
-window.adminLogin=async()=>{try{await signInWithEmailAndPassword(auth,loginUser.value.trim(),loginPass.value)}catch(e){alert("Login gagal. Pastikan Email/Password Firebase benar.")}};window.adminLogout=()=>signOut(auth);
+window.adminLogin = async () => {
+    const emailInput = document.getElementById("loginUser");
+    const passwordInput = document.getElementById("loginPass");
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+        alert("Email dan password wajib diisi.");
+        return;
+    }
+
+    try {
+        await signInWithEmailAndPassword(
+            auth,
+            email,
+            password
+        );
+    } catch (error) {
+        console.error("Firebase Login Error:", error);
+
+        if (error.code === "auth/invalid-credential") {
+            alert("Email atau password salah.");
+        } else if (error.code === "auth/user-not-found") {
+            alert("Akun admin tidak ditemukan.");
+        } else if (error.code === "auth/wrong-password") {
+            alert("Password salah.");
+        } else if (error.code === "auth/invalid-email") {
+            alert("Format email tidak valid.");
+        } else {
+            alert("Login gagal: " + error.message);
+        }
+    }
+};
 document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>showAdminPage(b.dataset.ap));
 window.showAdminPage=id=>{document.querySelectorAll(".admin-page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".navbtn").forEach(x=>x.classList.toggle("active",x.dataset.ap===id));adminTitle.textContent={dash:"Dashboard",manage:"Kelola Mobil",orders:"Pesanan",contact:"CS Admin & Social Media",settings:"Pengaturan Toko"}[id];renderAdmin()};
 async function loadAll(){const ps=await getDocs(collection(db,"products"));cars=ps.docs.map(d=>({id:d.id,...d.data()}));if(!cars.length){for(const c of defaults)await setDoc(doc(db,"products",c.id),c);cars=defaults.map(x=>({...x}))}const ss=await getDocs(collection(db,"settings"));const pub=ss.docs.find(d=>d.id==="public");if(pub)contact={...contact,...pub.data()};applyContact()}
