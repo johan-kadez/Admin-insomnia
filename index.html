@@ -1,0 +1,4 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Panel</title><link rel="stylesheet" href="style.css"></head><body>
+<div id="login" class="login"><form id="loginForm"><h1>Admin Panel</h1><p>Login memakai Firebase Authentication.</p><input id="email" type="email" required placeholder="Email admin"><input id="password" type="password" required placeholder="Password"><button class="primary">Login</button><small id="loginError"></small></form></div>
+<div id="app" class="hidden"><aside><h2>ADMIN</h2><button data-page="dashboard">Dashboard</button><button data-page="products">Produk</button><button data-page="orders">Pesanan</button><button id="logout">Keluar</button></aside><main id="content"></main></div>
+<script type="module" src="admin.js"></script></body></html>
