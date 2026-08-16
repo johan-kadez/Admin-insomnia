@@ -6,7 +6,28 @@
 @media(max-width:800px){.cars{grid-template-columns:repeat(2,1fr)}.contacts{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.sidebar{width:67px;padding:10px}.sidebrand b,.sidebrand small,.navbtn span,.logout span{display:none}.navbtn{text-align:center}.admin-main{padding:14px}}
 @media(max-width:480px){.cars{grid-template-columns:1fr}.hero{padding:32px 13px 23px}.brand small{display:none}.admin-app .sidebar{display:none}.car-row{grid-template-columns:58px 1fr}.thumb{height:50px}.row{grid-column:1/-1}}
 </style></head><body>
-<div id="loginScreen" class="admin-login"><div class="login-card"><div class="logo">IC</div><span class="eyebrow">INSOMNIA CHILDHOOD</span><h1>Admin Panel</h1><p class="muted">Kelola Car Parking Multiplayer Store</p><input id="loginUser" type="email" placeholder="Email admin"><input id="loginPass" type="password" placeholder="Password"><button class="primary" style="width:100%" onclick="adminLogin()">Masuk</button><small class="muted">Admin access</small></div></div>
+<div id="loginScreen" class="admin-login"><div class="login-card"><div class="logo">IC</div><span class="eyebrow">INSOMNIA CHILDHOOD</span><h1>Admin Panel</h1><p class="muted">Kelola Car Parking Multiplayer Store</p><input id="loginUser" type="email" placeholder="Email admin"><input
+    id="loginUser"
+    type="email"
+    placeholder="Email admin"
+    autocomplete="username"
+>
+
+<input
+    id="loginPass"
+    type="password"
+    placeholder="Password"
+    autocomplete="current-password"
+>
+
+<button
+    type="button"
+    class="primary"
+    style="width:100%"
+    onclick="adminLogin()"
+>
+    Masuk
+</button><small class="muted">Admin access</small></div></div>
 <div id="adminApp" class="admin-app hidden">
 <aside class="sidebar"><div class="sidebrand"><div class="logo">IC</div><div><b>Insomnia</b><small>Childhood Admin</small></div></div><div class="navs"><button class="navbtn active" data-ap="dash">⌂ <span>Dashboard</span></button><button class="navbtn" data-ap="manage">🚗 <span>Kelola Mobil</span></button><button class="navbtn" data-ap="orders">▣ <span>Pesanan</span></button><button class="navbtn" data-ap="contact">♧ <span>CS & Social</span></button><button class="navbtn" data-ap="settings">⚙ <span>Pengaturan</span></button></div><button class="logout" onclick="adminLogout()">Keluar</button></aside>
 <main class="admin-main"><div class="admin-head"><div><span class="eyebrow">ADMIN PANEL</span><h1 id="adminTitle">Dashboard</h1></div><span class="online">● Admin Online</span></div>
