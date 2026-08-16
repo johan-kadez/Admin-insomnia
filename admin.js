@@ -7,16 +7,31 @@ const defaults=[{id:"default-r35",name:"Nissan GT-R R35",price:35000,type:"sport
 const money=n=>"Rp "+Number(n||0).toLocaleString("id-ID");
 onAuthStateChanged(auth,async u=>{if(u){loginScreen.classList.add("hidden");adminApp.classList.remove("hidden");await loadAll();renderAdmin()}else{loginScreen.classList.remove("hidden");adminApp.classList.add("hidden")}});
 window.adminLogin = async () => {
-    const emailInput = document.getElementById("loginUser");
-    const passwordInput = document.getElementById("loginPass");
+    const loginScreenEl = document.getElementById("loginScreen");
+const adminAppEl = document.getElementById("adminApp");
 
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
+window.adminLogin = async function () {
+    const emailEl = document.getElementById("loginUser");
+    const passwordEl = document.getElementById("loginPass");
+    const buttonEl = document.getElementById("loginBtn");
 
-    if (!email || !password) {
-        alert("Email dan password wajib diisi.");
+    const email = emailEl.value.trim();
+    const password = passwordEl.value;
+
+    if (!email) {
+        alert("Email admin belum diisi.");
+        emailEl.focus();
         return;
     }
+
+    if (!password) {
+        alert("Password belum diisi.");
+        passwordEl.focus();
+        return;
+    }
+
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Memproses...";
 
     try {
         await signInWithEmailAndPassword(
@@ -24,22 +39,61 @@ window.adminLogin = async () => {
             email,
             password
         );
-    } catch (error) {
-        console.error("Firebase Login Error:", error);
 
-        if (error.code === "auth/invalid-credential") {
-            alert("Email atau password salah.");
-        } else if (error.code === "auth/user-not-found") {
-            alert("Akun admin tidak ditemukan.");
-        } else if (error.code === "auth/wrong-password") {
-            alert("Password salah.");
-        } else if (error.code === "auth/invalid-email") {
-            alert("Format email tidak valid.");
-        } else {
-            alert("Login gagal: " + error.message);
+    } catch (error) {
+        console.error(error);
+
+        let message = "Login gagal.";
+
+        switch (error.code) {
+            case "auth/invalid-credential":
+            case "auth/wrong-password":
+                message = "Email atau password salah.";
+                break;
+
+            case "auth/user-not-found":
+                message = "Akun admin tidak ditemukan.";
+                break;
+
+            case "auth/invalid-email":
+                message = "Format email tidak valid.";
+                break;
+
+            case "auth/operation-not-allowed":
+                message = "Email/Password belum diaktifkan di Firebase Authentication.";
+                break;
+
+            case "auth/network-request-failed":
+                message = "Koneksi internet bermasalah.";
+                break;
+
+            default:
+                message = "Firebase: " + error.message;
         }
+
+        alert(message);
+
+        buttonEl.disabled = false;
+        buttonEl.textContent = "Masuk";
     }
 };
+
+window.adminLogout = function () {
+    signOut(auth);
+};
+
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        loginScreenEl.classList.add("hidden");
+        adminAppEl.classList.remove("hidden");
+
+        await loadAll();
+        renderAdmin();
+    } else {
+        loginScreenEl.classList.remove("hidden");
+        adminAppEl.classList.add("hidden");
+    }
+});
 document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>showAdminPage(b.dataset.ap));
 window.showAdminPage=id=>{document.querySelectorAll(".admin-page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".navbtn").forEach(x=>x.classList.toggle("active",x.dataset.ap===id));adminTitle.textContent={dash:"Dashboard",manage:"Kelola Mobil",orders:"Pesanan",contact:"CS Admin & Social Media",settings:"Pengaturan Toko"}[id];renderAdmin()};
 async function loadAll(){const ps=await getDocs(collection(db,"products"));cars=ps.docs.map(d=>({id:d.id,...d.data()}));if(!cars.length){for(const c of defaults)await setDoc(doc(db,"products",c.id),c);cars=defaults.map(x=>({...x}))}const ss=await getDocs(collection(db,"settings"));const pub=ss.docs.find(d=>d.id==="public");if(pub)contact={...contact,...pub.data()};applyContact()}
