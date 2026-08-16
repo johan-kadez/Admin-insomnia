@@ -98,7 +98,44 @@ window.adminLogout=()=>{
 
 document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>showAdminPage(b.dataset.ap));
 window.showAdminPage=id=>{document.querySelectorAll(".admin-page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".navbtn").forEach(x=>x.classList.toggle("active",x.dataset.ap===id));adminTitle.textContent={dash:"Dashboard",manage:"Kelola Mobil",orders:"Pesanan",contact:"CS Admin & Social Media",settings:"Pengaturan Toko"}[id];renderAdmin()};
-async function loadAll(){const ps=await firebaseFns.getDocs(firebaseFns.collection(db,"products"));cars=ps.docs.map(d=>({id:d.id,...d.data()}));if(!cars.length){for(const c of defaults)await firebaseFns.setDoc(firebaseFns.doc(db,"products",c.id),c);cars=defaults.map(x=>({...x}))}const ss=await firebaseFns.getDocs(firebaseFns.collection(db,"settings"));const pub=ss.docs.find(d=>d.id==="public");if(pub)contact={...contact,...pub.data()};applyContact()}
+async function loadAll(){
+  try {
+    const ps = await getDocs(collection(db,"products"));
+
+    cars = ps.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    if(!cars.length){
+      for(const c of defaults){
+        await setDoc(doc(db,"products",c.id),c);
+      }
+      cars = defaults.map(x => ({...x}));
+    }
+
+    const ss = await getDocs(collection(db,"settings"));
+    const pub = ss.docs.find(d => d.id==="public");
+
+    if(pub){
+      contact = {...contact,...pub.data()};
+    }
+
+    applyContact();
+
+  } catch(e) {
+    console.error("ERROR ASLI loadAll:", e);
+
+    alert(
+      "ERROR ASLI:\n\n" +
+      "code: " + (e?.code || "tidak ada") +
+      "\n\nmessage:\n" +
+      (e?.message || e)
+    );
+
+    throw e;
+  }
+}
 function renderAdmin(){aTotal.textContent=cars.length;aAvailable.textContent=cars.filter(c=>c.status==="available"&&c.active!==false).length;if(manage.classList.contains("active"))renderAdminCars()}
 window.renderAdminCars=()=>{const q=(adminSearch.value||"").toLowerCase();adminCars.innerHTML=cars.filter(c=>String(c.name||"").toLowerCase().includes(q)).map(c=>`<div class="car-row"><div class="thumb" ${c.image?`style="background-image:url('${String(c.image).replace(/'/g,"\\'")}');background-size:cover;background-position:center;color:transparent"`:""}>${c.image?"":"CAR"}</div><div><h3>${c.name}</h3><p>${money(c.price)} • ${String(c.type||"").toUpperCase()} • ${c.status==="available"?"TERSEDIA":"HABIS"} • ${c.active!==false?"AKTIF":"NONAKTIF"}</p></div><div class="row"><button onclick="editCar('${c.id}')">Edit</button><button onclick="deleteCar('${c.id}')">Hapus</button></div></div>`).join("")||"<div class='admin-panel' style='text-align:center;color:#617b92'>Mobil tidak ditemukan.</div>"};
 window.openCarForm=()=>{editingId=null;modalTitle.textContent="Tambah Mobil";carName.value="";carPrice.value="";carImage.value="";carType.value="sport";carStatus.value="available";carModal.classList.remove("hidden")};window.editCar=id=>{const c=cars.find(x=>x.id===id);if(!c)return;editingId=id;modalTitle.textContent="Edit Mobil";carName.value=c.name||"";carPrice.value=c.price||0;carType.value=c.type||"sport";carImage.value=c.image||"";carStatus.value=c.status||"available";carModal.classList.remove("hidden")};window.closeCarForm=()=>carModal.classList.add("hidden");
