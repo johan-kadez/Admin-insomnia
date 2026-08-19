@@ -1,65 +1,927 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getFirestore,collection,getDocs,addDoc,doc,updateDoc,deleteDoc,setDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-import { getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { firebaseConfig } from "./firebase-config.js";
-const app=initializeApp(firebaseConfig),db=getFirestore(app),auth=getAuth(app);let cars=[],contact={wa:"6281234567890",tg:"#",tt:"#",yt:"#"},editingId=null;
-const defaults=[{id:"default-r35",name:"Nissan GT-R R35",price:35000,type:"sport",image:"",status:"available",active:true},{id:"default-supra",name:"Toyota Supra MK4",price:30000,type:"jdm",image:"",status:"available",active:true},{id:"default-m4",name:"BMW M4",price:40000,type:"luxury",image:"",status:"available",active:true},{id:"default-huracan",name:"Lamborghini Huracan",price:50000,type:"sport",image:"",status:"available",active:true},{id:"default-s15",name:"Nissan Silvia S15",price:28000,type:"jdm",image:"",status:"available",active:true},{id:"default-amg",name:"Mercedes AMG GT",price:45000,type:"luxury",image:"",status:"available",active:true}];
-const money=n=>"Rp "+Number(n||0).toLocaleString("id-ID");
-const loginScreenEl=document.getElementById("loginScreen");
-const adminAppEl=document.getElementById("adminApp");
-onAuthStateChanged(auth,async u=>{if(u){loginScreenEl.classList.add("hidden");adminAppEl.classList.remove("hidden");await loadAll();renderAdmin()}else{loginScreenEl.classList.remove("hidden");adminAppEl.classList.add("hidden")}});
-async function adminLogin(){
-  const user=document.getElementById("loginUser")?.value.trim();
-  const pass=document.getElementById("loginPass")?.value;
-  const btn=document.getElementById("loginBtn");
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
-  if(!user || !pass){
-    alert("Isi email dan password terlebih dahulu.");
-    return;
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+import { firebaseConfig } from "/firebase-config.js";
+import { SITE_CONFIG } from "/site-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const $ = id => document.getElementById(id);
+
+const rupiah = n =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0
+  }).format(Number(n) || 0);
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;"
+  }[c]));
+}
+
+function priceHtml(p) {
+  const normal = Number(p.price) || 0;
+  const discount = Number(p.discountPrice) || 0;
+
+  if (discount > 0 && normal > 0 && discount < normal) {
+    return `
+      <span class="price-old">${rupiah(normal)}</span>
+      <span class="price-new">${rupiah(discount)}</span>
+    `;
   }
 
-  if(btn){
-    btn.disabled=true;
-    btn.textContent="Masuk...";
+  return normal
+    ? `<span class="price-new">${rupiah(normal)}</span>`
+    : "-";
+}
+
+
+/* =========================
+   POPUP
+========================= */
+
+function showPopup(title, message, type = "info", action = null) {
+  $("popupTitle").textContent = title;
+  $("popupMessage").textContent = message;
+
+  $("popupIcon").textContent =
+    type === "error" ? "!" :
+    type === "success" ? "✓" : "i";
+
+  $("popupEyebrow").textContent =
+    type === "error" ? "ERROR" :
+    type === "success" ? "SUCCESS" :
+    "NOTICE";
+
+  const button = $("popupAction");
+
+  button.classList.toggle("hidden", !action);
+
+  if (action) {
+    button.textContent = action.text;
+    button.onclick = () => {
+      hidePopup();
+      action.fn?.();
+    };
   }
 
-  try{
-    await signInWithEmailAndPassword(auth,user,pass);
-  }catch(e){
-    console.error("Firebase login error:",e);
-    let msg="Login gagal. Periksa koneksi Firebase dan konfigurasi firebase-config.js.";
+  $("sitePopup").classList.remove("hidden");
+}
 
-    if(e?.code==="auth/invalid-credential" || e?.code==="auth/wrong-password" || e?.code==="auth/user-not-found"){
-      msg="Email atau password salah.";
-    }else if(e?.code==="auth/operation-not-allowed"){
-      msg="Firebase Authentication Email/Password belum diaktifkan.";
-    }else if(e?.code==="auth/invalid-email"){
-      msg="Format email tidak valid. Gunakan email akun admin Firebase.";
-    }else if(e?.code==="auth/network-request-failed"){
-      msg="Koneksi ke Firebase gagal. Coba cek internet lalu reload.";
-    }
+function hidePopup() {
+  $("sitePopup").classList.add("hidden");
+}
 
-    alert(msg);
-    if(btn){
-      btn.disabled=false;
-      btn.textContent="Masuk";
+$("popupClose").onclick = hidePopup;
+
+$("sitePopup").addEventListener("click", e => {
+  if (e.target === $("sitePopup")) {
+    hidePopup();
+  }
+});
+
+
+/* =========================
+   LOGO + BACKGROUND
+========================= */
+
+if (SITE_CONFIG.logoUrl) {
+  $("brandLogo").src = SITE_CONFIG.logoUrl;
+  $("brandLogo").classList.remove("hidden");
+}
+
+if (SITE_CONFIG.backgroundUrl) {
+  document.documentElement.style.setProperty(
+    "--site-bg-image",
+    `url("${SITE_CONFIG.backgroundUrl.replace(/"/g, '\\"')}")`
+  );
+
+  document.body.classList.add("custom-bg");
+}
+
+
+/* =========================
+   MULTIPLE FOTO
+========================= */
+
+function getImageInputs(containerId) {
+  const container = $(containerId);
+
+  if (!container) return [];
+
+  return [...container.querySelectorAll("input")]
+    .map(input => input.value.trim())
+    .filter(Boolean);
+}
+
+
+function createImageInput(containerId, value = "", focus = false) {
+  const container = $(containerId);
+
+  if (!container) return null;
+
+  const input = document.createElement("input");
+
+  input.type = "url";
+  input.placeholder = "URL/path gambar dari imgur";
+  input.value = value;
+
+  input.style.display = "block";
+  input.style.width = "100%";
+  input.style.boxSizing = "border-box";
+  input.style.marginBottom = "12px";
+
+  container.appendChild(input);
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+
+      if (input.value.trim()) {
+        createImageInput(containerId, "", true);
+      }
     }
+  });
+
+  return input;
+}
+
+
+function ensureImageInput(containerId) {
+  const container = $(containerId);
+
+  if (!container) return;
+
+  if (!container.querySelector("input")) {
+    createImageInput(containerId);
   }
 }
 
-window.adminLogin=adminLogin;window.adminLogout=()=>signOut(auth);
-document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>showAdminPage(b.dataset.ap));
-window.showAdminPage=id=>{document.querySelectorAll(".admin-page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".navbtn").forEach(x=>x.classList.toggle("active",x.dataset.ap===id));adminTitle.textContent={dash:"Dashboard",manage:"Kelola Mobil",orders:"Pesanan",contact:"CS Admin & Social Media",settings:"Pengaturan Toko"}[id];renderAdmin()};
-async function loadAll(){const ps=await getDocs(collection(db,"products"));cars=ps.docs.map(d=>({id:d.id,...d.data()}));if(!cars.length){for(const c of defaults)await setDoc(doc(db,"products",c.id),c);cars=defaults.map(x=>({...x}))}const ss=await getDocs(collection(db,"settings"));const pub=ss.docs.find(d=>d.id==="public");if(pub)contact={...contact,...pub.data()};applyContact()}
-function renderAdmin(){aTotal.textContent=cars.length;aAvailable.textContent=cars.filter(c=>c.status==="available"&&c.active!==false).length;if(manage.classList.contains("active"))renderAdminCars()}
-window.renderAdminCars=()=>{const q=(adminSearch.value||"").toLowerCase();adminCars.innerHTML=cars.filter(c=>String(c.name||"").toLowerCase().includes(q)).map(c=>`<div class="car-row"><div class="thumb" ${c.image?`style="background-image:url('${String(c.image).replace(/'/g,"\\'")}');background-size:cover;background-position:center;color:transparent"`:""}>${c.image?"":"CAR"}</div><div><h3>${c.name}</h3><p>${money(c.price)} • ${String(c.type||"").toUpperCase()} • ${c.status==="available"?"TERSEDIA":"HABIS"} • ${c.active!==false?"AKTIF":"NONAKTIF"}</p></div><div class="row"><button onclick="editCar('${c.id}')">Edit</button><button onclick="deleteCar('${c.id}')">Hapus</button></div></div>`).join("")||"<div class='admin-panel' style='text-align:center;color:#617b92'>Mobil tidak ditemukan.</div>"};
-window.openCarForm=()=>{editingId=null;modalTitle.textContent="Tambah Mobil";carName.value="";carPrice.value="";carImage.value="";carType.value="sport";carStatus.value="available";carModal.classList.remove("hidden")};window.editCar=id=>{const c=cars.find(x=>x.id===id);if(!c)return;editingId=id;modalTitle.textContent="Edit Mobil";carName.value=c.name||"";carPrice.value=c.price||0;carType.value=c.type||"sport";carImage.value=c.image||"";carStatus.value=c.status||"available";carModal.classList.remove("hidden")};window.closeCarForm=()=>carModal.classList.add("hidden");
-window.saveCar=async()=>{const data={name:carName.value.trim(),price:Number(carPrice.value),type:carType.value,image:carImage.value.trim(),status:carStatus.value,active:true};if(!data.name||!data.price)return alert("Nama dan harga wajib diisi.");if(editingId)await updateDoc(doc(db,"products",editingId),data);else await addDoc(collection(db,"products"),data);await loadAll();closeCarForm();renderAdmin()};window.deleteCar=async id=>{if(confirm("Hapus mobil ini?")){await deleteDoc(doc(db,"products",id));await loadAll();renderAdmin()}};
-window.saveContact=async()=>{contact={wa:editWa.value.trim(),tg:editTg.value.trim(),tt:editTt.value.trim(),yt:editYt.value.trim()};await setDoc(doc(db,"settings","public"),contact,{merge:true});applyContact();alert("CS & Social berhasil disimpan.")};function applyContact(){editWa.value=contact.wa||"";editTg.value=contact.tg||"";editTt.value=contact.tt||"";editYt.value=contact.yt||""}window.saveSettings=()=>alert("Pengaturan dasar ini mengikuti branding Store.");
-window.addEventListener("DOMContentLoaded",()=>{
-  adminSearch?.addEventListener("input",renderAdminCars);
-  document.getElementById("loginBtn")?.addEventListener("click",adminLogin);
-  document.getElementById("loginPass")?.addEventListener("keydown",e=>{
-    if(e.key==="Enter") adminLogin();
+
+function setImageInputs(containerId, images) {
+  const container = $(containerId);
+
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const list = Array.isArray(images)
+    ? images.filter(x => String(x).trim())
+    : [];
+
+  if (list.length === 0) {
+    createImageInput(containerId);
+    return;
+  }
+
+  list.forEach(url => {
+    createImageInput(containerId, String(url));
   });
+}
+
+
+function resetImageInputs(containerId) {
+  const container = $(containerId);
+
+  if (!container) return;
+
+  container.innerHTML = "";
+  createImageInput(containerId);
+}
+
+
+/* Tombol + Tambah URL foto */
+
+document.querySelectorAll("[data-add-images]").forEach(button => {
+  button.addEventListener("click", () => {
+    const containerId = button.dataset.addImages;
+
+    const input = createImageInput(
+      containerId,
+      "",
+      true
+    );
+
+    if (input) {
+      input.focus();
+    }
+  });
+});
+
+
+ensureImageInput("carImages");
+ensureImageInput("serviceImages");
+
+
+/* =========================
+   EDIT
+========================= */
+
+let editingId = null;
+let editingType = null;
+
+
+function resetCar() {
+  editingId = null;
+  editingType = null;
+
+  $("carForm").reset();
+
+  resetImageInputs("carImages");
+
+  $("carSubmit").textContent = "Simpan Mobil";
+  $("carCancelEdit").classList.add("hidden");
+}
+
+
+function resetService() {
+  editingId = null;
+  editingType = null;
+
+  $("serviceForm").reset();
+
+  resetImageInputs("serviceImages");
+
+  $("serviceSubmit").textContent = "Simpan Jasa";
+  $("serviceCancelEdit").classList.add("hidden");
+}
+
+
+function startEdit(p) {
+  editingId = p.id;
+  editingType = p.category === "jasa" ? "service" : "car";
+
+  const images = Array.isArray(p.images)
+    ? p.images
+    : p.image
+      ? [p.image]
+      : [];
+
+
+  if (editingType === "car") {
+
+    $("carForm").classList.remove("hidden");
+    $("serviceForm").classList.add("hidden");
+
+    document.querySelectorAll(".admin-tab").forEach(x => {
+      x.classList.toggle(
+        "active",
+        x.dataset.form === "carForm"
+      );
+    });
+
+    $("carName").value = p.name || "";
+    $("carCategory").value = p.category || "cpm1";
+    $("carSpec").value = p.specification || "";
+    $("carPrice").value = p.price ?? "";
+    $("carDiscountPrice").value = p.discountPrice ?? "";
+    $("carStock").value = p.stock ?? 0;
+    $("carActive").value = String(!!p.active);
+
+    setImageInputs("carImages", images);
+
+    $("carSubmit").textContent = "Update Mobil";
+    $("carCancelEdit").classList.remove("hidden");
+
+  } else {
+
+    $("serviceForm").classList.remove("hidden");
+    $("carForm").classList.add("hidden");
+
+    document.querySelectorAll(".admin-tab").forEach(x => {
+      x.classList.toggle(
+        "active",
+        x.dataset.form === "serviceForm"
+      );
+    });
+
+    $("serviceName").value = p.name || "";
+    $("serviceDescription").value = p.description || "";
+    $("servicePrice").value = p.price ?? "";
+    $("serviceDiscountPrice").value = p.discountPrice ?? "";
+    $("serviceActive").value = String(!!p.active);
+
+    setImageInputs("serviceImages", images);
+
+    $("serviceSubmit").textContent = "Update Jasa";
+    $("serviceCancelEdit").classList.remove("hidden");
+  }
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+
+/* =========================
+   LOGIN
+========================= */
+
+$("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const email = $("email").value.trim();
+  const password = $("password").value;
+
+  if (!email || !password) {
+    showPopup(
+      "Login gagal",
+      "Email dan password wajib diisi.",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+  } catch (err) {
+    console.error(err);
+
+    showPopup(
+      "Login gagal",
+      "Email atau password admin salah, atau Firebase Authentication belum dikonfigurasi.",
+      "error"
+    );
+  }
+});
+
+
+$("logout").onclick = () => signOut(auth);
+
+
+/* =========================
+   TAB
+========================= */
+
+document.querySelectorAll(".admin-tab").forEach(tab => {
+
+  tab.addEventListener("click", () => {
+
+    if (!tab.dataset.form) return;
+
+    document.querySelectorAll(".admin-tab").forEach(x => {
+      x.classList.toggle("active", x === tab);
+    });
+
+    $("carForm").classList.toggle(
+      "hidden",
+      tab.dataset.form !== "carForm"
+    );
+
+    $("serviceForm").classList.toggle(
+      "hidden",
+      tab.dataset.form !== "serviceForm"
+    );
+  });
+
+});
+
+
+/* =========================
+   LOAD ADMIN
+========================= */
+
+async function loadAdmin() {
+
+  try {
+
+    const snap = await getDocs(
+      collection(db, "products")
+    );
+
+    const cars = [];
+    const services = [];
+
+    snap.docs.forEach(d => {
+
+      const p = {
+        id: d.id,
+        ...d.data()
+      };
+
+      if (p.category === "jasa") {
+        services.push(p);
+      } else {
+        cars.push(p);
+      }
+
+    });
+
+
+    $("cars").innerHTML =
+      cars.map(p => `
+        <tr>
+          <td>${escapeHtml(p.name)}</td>
+
+          <td>
+            ${p.category === "cpm1"
+              ? "CPM 1"
+              : "CPM 2"}
+          </td>
+
+          <td>
+            ${escapeHtml(
+              p.specification || "-"
+            )}
+          </td>
+
+          <td>
+            ${priceHtml(p)}
+          </td>
+
+          <td>
+            ${p.stock ?? 0}
+          </td>
+
+          <td>
+            ${p.active
+              ? "Aktif"
+              : "Nonaktif"}
+          </td>
+
+          <td class="admin-actions">
+
+            <button
+              type="button"
+              class="admin-edit"
+              data-edit="${escapeHtml(p.id)}">
+              Edit
+            </button>
+
+            <button
+              type="button"
+              class="danger"
+              data-delete="${escapeHtml(p.id)}">
+              Hapus
+            </button>
+
+          </td>
+        </tr>
+      `).join("")
+      ||
+      "<tr><td colspan='7'>Belum ada mobil.</td></tr>";
+
+
+    $("services").innerHTML =
+      services.map(p => `
+        <tr>
+
+          <td>
+            ${escapeHtml(p.name)}
+          </td>
+
+          <td>
+            ${escapeHtml(
+              p.description || "-"
+            )}
+          </td>
+
+          <td>
+            ${priceHtml(p)}
+          </td>
+
+          <td>
+            ${p.active
+              ? "Aktif"
+              : "Nonaktif"}
+          </td>
+
+          <td class="admin-actions">
+
+            <button
+              type="button"
+              class="admin-edit"
+              data-edit="${escapeHtml(p.id)}">
+              Edit
+            </button>
+
+            <button
+              type="button"
+              class="danger"
+              data-delete="${escapeHtml(p.id)}">
+              Hapus
+            </button>
+
+          </td>
+
+        </tr>
+      `).join("")
+      ||
+      "<tr><td colspan='5'>Belum ada jasa.</td></tr>";
+
+
+    /* EDIT */
+
+    document.querySelectorAll("[data-edit]")
+      .forEach(button => {
+
+        button.onclick = async () => {
+
+          try {
+
+            const product = await getDocs(
+              collection(db, "products")
+            );
+
+            const found = product.docs.find(
+              d => d.id === button.dataset.edit
+            );
+
+            if (found) {
+              startEdit({
+                id: found.id,
+                ...found.data()
+              });
+            }
+
+          } catch (err) {
+
+            console.error(err);
+
+            showPopup(
+              "Gagal membuka edit",
+              "Produk tidak dapat dibaca dari Firestore.",
+              "error"
+            );
+          }
+        };
+
+      });
+
+
+    /* DELETE */
+
+    document.querySelectorAll("[data-delete]")
+      .forEach(button => {
+
+        button.onclick = () => {
+
+          showPopup(
+            "Hapus produk?",
+            "Produk ini akan dihapus dari katalog.",
+            "error",
+            {
+              text: "Hapus",
+
+              fn: async () => {
+
+                try {
+
+                  await deleteDoc(
+                    doc(
+                      db,
+                      "products",
+                      button.dataset.delete
+                    )
+                  );
+
+                  showPopup(
+                    "Berhasil",
+                    "Produk telah dihapus.",
+                    "success"
+                  );
+
+                  await loadAdmin();
+
+                } catch (err) {
+
+                  console.error(err);
+
+                  showPopup(
+                    "Gagal menghapus",
+                    "Periksa Firestore Rules lalu coba lagi.",
+                    "error"
+                  );
+                }
+              }
+            }
+          );
+
+        };
+
+      });
+
+
+    /* ORDERS */
+
+    const orderSnap = await getDocs(
+      query(
+        collection(db, "orders"),
+        orderBy("createdAt", "desc")
+      )
+    );
+
+    $("orders").innerHTML =
+      orderSnap.docs.map(d => {
+
+        const o = d.data();
+        const item = o.items?.[0];
+
+        return `
+          <tr>
+            <td>
+              ${escapeHtml(o.customerName)}
+            </td>
+
+            <td>
+              ${escapeHtml(o.phone)}
+            </td>
+
+            <td>
+              ${escapeHtml(item?.name || "-")}
+            </td>
+
+            <td>
+              ${escapeHtml(o.status || "Baru")}
+            </td>
+          </tr>
+        `;
+
+      }).join("")
+      ||
+      "<tr><td colspan='4'>Belum ada pesanan.</td></tr>";
+
+
+  } catch (err) {
+
+    console.error(err);
+
+    showPopup(
+      "Gagal memuat data",
+      "Periksa Firestore Rules dan konfigurasi Firebase.",
+      "error"
+    );
+  }
+}
+
+
+/* =========================
+   SAVE / UPDATE PRODUCT
+========================= */
+
+async function saveProduct(form, type) {
+
+  const isCar = type === "car";
+
+  const images = isCar
+    ? getImageInputs("carImages")
+    : getImageInputs("serviceImages");
+
+
+  if (images.length === 0) {
+
+    showPopup(
+      "Foto belum diisi",
+      "Masukkan minimal satu URL foto.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  const normalPrice = isCar
+    ? Number($("carPrice").value)
+    : $("servicePrice").value
+      ? Number($("servicePrice").value)
+      : 0;
+
+
+  const discountPrice = isCar
+    ? $("carDiscountPrice").value
+      ? Number($("carDiscountPrice").value)
+      : 0
+    : $("serviceDiscountPrice").value
+      ? Number($("serviceDiscountPrice").value)
+      : 0;
+
+
+  if (
+    discountPrice &&
+    normalPrice &&
+    discountPrice >= normalPrice
+  ) {
+
+    showPopup(
+      "Harga diskon tidak valid",
+      "Harga setelah diskon harus lebih kecil dari harga normal.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  const data = isCar
+
+    ? {
+        name: $("carName").value.trim(),
+
+        category:
+          $("carCategory").value,
+
+        specification:
+          $("carSpec").value,
+
+        price:
+          normalPrice,
+
+        discountPrice:
+          discountPrice,
+
+        stock:
+          Number($("carStock").value),
+
+        images: images,
+
+        // Tetap simpan image pertama
+        // supaya kompatibel dengan data lama.
+        image: images[0],
+
+        active:
+          $("carActive").value === "true",
+
+        type: "car"
+      }
+
+    : {
+        name:
+          $("serviceName").value.trim(),
+
+        category:
+          "jasa",
+
+        description:
+          $("serviceDescription").value,
+
+        price:
+          normalPrice,
+
+        discountPrice:
+          discountPrice,
+
+        images: images,
+
+        image: images[0],
+
+        active:
+          $("serviceActive").value === "true",
+
+        type: "service"
+      };
+
+
+  try {
+
+    if (editingId) {
+
+      await updateDoc(
+        doc(db, "products", editingId),
+        data
+      );
+
+      if (isCar) {
+        resetCar();
+      } else {
+        resetService();
+      }
+
+      await loadAdmin();
+
+      showPopup(
+        isCar
+          ? "Mobil berhasil diupdate"
+          : "Jasa berhasil diupdate",
+
+        "Perubahan sudah disimpan.",
+
+        "success"
+      );
+
+    } else {
+
+      await addDoc(
+        collection(db, "products"),
+        {
+          ...data,
+          createdAt:
+            new Date().toISOString()
+        }
+      );
+
+      if (isCar) {
+        resetCar();
+      } else {
+        resetService();
+      }
+
+      await loadAdmin();
+
+      showPopup(
+        isCar
+          ? "Mobil berhasil ditambahkan"
+          : "Jasa berhasil ditambahkan",
+
+        "Produk sudah masuk ke katalog.",
+
+        "success"
+      );
+    }
+
+  } catch (err) {
+
+    console.error(err);
+
+    showPopup(
+      editingId
+        ? "Gagal mengupdate produk"
+        : isCar
+          ? "Gagal menambahkan mobil"
+          : "Gagal menambahkan jasa",
+
+      "Periksa Firestore Rules.",
+
+      "error"
+    );
+  }
+}
+
+
+/* =========================
+   FORM SUBMIT
+========================= */
+
+$("carForm").onsubmit = e => {
+  e.preventDefault();
+  saveProduct(e.target, "car");
+};
+
+
+$("serviceForm").onsubmit = e => {
+  e.preventDefault();
+  saveProduct(e.target, "service");
+};
+
+
+$("carCancelEdit").onclick = resetCar;
+$("serviceCancelEdit").onclick = resetService;
+
+
+/* =========================
+   AUTH STATE
+========================= */
+
+onAuthStateChanged(auth, user => {
+
+  $("login").classList.toggle(
+    "hidden",
+    !!user
+  );
+
+  $("adminPanel").classList.toggle(
+    "hidden",
+    !user
+  );
+
+  $("logout").classList.toggle(
+    "hidden",
+    !user
+  );
+
+  if (user) {
+    loadAdmin();
+  }
+
 });
