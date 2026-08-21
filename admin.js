@@ -415,232 +415,6 @@ document.querySelectorAll(".admin-tab").forEach(tab => {
    LOAD ADMIN
 ========================= */
 
-let cachedCars = [];
-let cachedServices = [];
-
-function matchesAdminSearch(p, q) {
-  if (!q) return true;
-
-  const haystack = `${p.name || ""} ${p.productId || ""}`.toLowerCase();
-
-  return haystack.includes(q);
-}
-
-function attachCatalogRowActions() {
-
-  /* EDIT */
-
-  document.querySelectorAll("[data-edit]")
-    .forEach(button => {
-
-      button.onclick = async () => {
-
-        try {
-
-          const product = await getDocs(
-            collection(db, "products")
-          );
-
-          const found = product.docs.find(
-            d => d.id === button.dataset.edit
-          );
-
-          if (found) {
-            startEdit({
-              id: found.id,
-              ...found.data()
-            });
-          }
-
-        } catch (err) {
-
-          console.error(err);
-
-          showPopup(
-            "Gagal membuka edit",
-            "Produk tidak dapat dibaca dari Firestore.",
-            "error"
-          );
-        }
-      };
-
-    });
-
-
-  /* DELETE */
-
-  document.querySelectorAll("[data-delete]")
-    .forEach(button => {
-
-      button.onclick = () => {
-
-        showPopup(
-          "Hapus produk?",
-          "Produk ini akan dihapus dari katalog.",
-          "error",
-          {
-            text: "Hapus",
-
-            fn: async () => {
-
-              try {
-
-                await deleteDoc(
-                  doc(
-                    db,
-                    "products",
-                    button.dataset.delete
-                  )
-                );
-
-                showPopup(
-                  "Berhasil",
-                  "Produk telah dihapus.",
-                  "success"
-                );
-
-                await loadAdmin();
-
-              } catch (err) {
-
-                console.error(err);
-
-                showPopup(
-                  "Gagal menghapus",
-                  "Periksa Firestore Rules lalu coba lagi.",
-                  "error"
-                );
-              }
-            }
-          }
-        );
-
-      };
-
-    });
-
-}
-
-function renderCatalogTables() {
-
-  const q = ($("adminSearch")?.value || "").trim().toLowerCase();
-
-  const cars = cachedCars.filter(p => matchesAdminSearch(p, q));
-  const services = cachedServices.filter(p => matchesAdminSearch(p, q));
-
-  $("cars").innerHTML =
-    cars.map(p => `
-      <tr>
-        <td>${escapeHtml(p.productId || "-")}</td>
-
-        <td>${escapeHtml(p.name)}</td>
-
-        <td>
-          ${p.category === "cpm1"
-            ? "CPM 1"
-            : "CPM 2"}
-        </td>
-
-        <td>
-          ${escapeHtml(
-            p.specification || "-"
-          )}
-        </td>
-
-        <td>
-          ${priceHtml(p)}
-        </td>
-
-        <td>
-          ${p.stock ?? 0}
-        </td>
-
-        <td>
-          ${p.active
-            ? "Aktif"
-            : "Nonaktif"}
-        </td>
-
-        <td class="admin-actions">
-
-          <button
-            type="button"
-            class="admin-edit"
-            data-edit="${escapeHtml(p.id)}">
-            Edit
-          </button>
-
-          <button
-            type="button"
-            class="danger"
-            data-delete="${escapeHtml(p.id)}">
-            Hapus
-          </button>
-
-        </td>
-      </tr>
-    `).join("")
-    ||
-    "<tr><td colspan='8'>Belum ada mobil.</td></tr>";
-
-
-  $("services").innerHTML =
-    services.map(p => `
-      <tr>
-
-        <td>
-          ${escapeHtml(p.productId || "-")}
-        </td>
-
-        <td>
-          ${escapeHtml(p.name)}
-        </td>
-
-        <td>
-          ${escapeHtml(
-            p.description || "-"
-          )}
-        </td>
-
-        <td>
-          ${priceHtml(p)}
-        </td>
-
-        <td>
-          ${p.active
-            ? "Aktif"
-            : "Nonaktif"}
-        </td>
-
-        <td class="admin-actions">
-
-          <button
-            type="button"
-            class="admin-edit"
-            data-edit="${escapeHtml(p.id)}">
-            Edit
-          </button>
-
-          <button
-            type="button"
-            class="danger"
-            data-delete="${escapeHtml(p.id)}">
-            Hapus
-          </button>
-
-        </td>
-
-      </tr>
-    `).join("")
-    ||
-    "<tr><td colspan='6'>Belum ada jasa.</td></tr>";
-
-  attachCatalogRowActions();
-}
-
-$("adminSearch")?.addEventListener("input", renderCatalogTables);
-
-
 async function loadAdmin() {
 
   try {
@@ -667,10 +441,205 @@ async function loadAdmin() {
 
     });
 
-    cachedCars = cars;
-    cachedServices = services;
 
-    renderCatalogTables();
+    $("cars").innerHTML =
+      cars.map(p => `
+        <tr>
+          <td>${escapeHtml(p.productId || "-")}</td>
+          <td>${escapeHtml(p.name)}</td>
+
+          <td>
+            ${p.category === "cpm1"
+              ? "CPM 1"
+              : "CPM 2"}
+          </td>
+
+          <td>
+            ${escapeHtml(
+              p.specification || "-"
+            )}
+          </td>
+
+          <td>
+            ${priceHtml(p)}
+          </td>
+
+          <td>
+            ${p.stock ?? 0}
+          </td>
+
+          <td>
+            ${p.active
+              ? "Aktif"
+              : "Nonaktif"}
+          </td>
+
+          <td class="admin-actions">
+
+            <button
+              type="button"
+              class="admin-edit"
+              data-edit="${escapeHtml(p.id)}">
+              Edit
+            </button>
+
+            <button
+              type="button"
+              class="danger"
+              data-delete="${escapeHtml(p.id)}">
+              Hapus
+            </button>
+
+          </td>
+        </tr>
+      `).join("")
+      ||
+      "<tr><td colspan='8'>Belum ada mobil.</td></tr>";
+
+
+    $("services").innerHTML =
+      services.map(p => `
+        <tr>
+
+          <td>
+            ${escapeHtml(p.productId || "-")}
+          </td>
+
+          <td>
+            ${escapeHtml(p.name)}
+          </td>
+
+          <td>
+            ${escapeHtml(
+              p.description || "-"
+            )}
+          </td>
+
+          <td>
+            ${priceHtml(p)}
+          </td>
+
+          <td>
+            ${p.active
+              ? "Aktif"
+              : "Nonaktif"}
+          </td>
+
+          <td class="admin-actions">
+
+            <button
+              type="button"
+              class="admin-edit"
+              data-edit="${escapeHtml(p.id)}">
+              Edit
+            </button>
+
+            <button
+              type="button"
+              class="danger"
+              data-delete="${escapeHtml(p.id)}">
+              Hapus
+            </button>
+
+          </td>
+
+        </tr>
+      `).join("")
+      ||
+      "<tr><td colspan='6'>Belum ada jasa.</td></tr>";
+
+
+    /* EDIT */
+
+    document.querySelectorAll("[data-edit]")
+      .forEach(button => {
+
+        button.onclick = async () => {
+
+          try {
+
+            const product = await getDocs(
+              collection(db, "products")
+            );
+
+            const found = product.docs.find(
+              d => d.id === button.dataset.edit
+            );
+
+            if (found) {
+              startEdit({
+                id: found.id,
+                ...found.data()
+              });
+            }
+
+          } catch (err) {
+
+            console.error(err);
+
+            showPopup(
+              "Gagal membuka edit",
+              "Produk tidak dapat dibaca dari Firestore.",
+              "error"
+            );
+          }
+        };
+
+      });
+
+
+    /* DELETE */
+
+    document.querySelectorAll("[data-delete]")
+      .forEach(button => {
+
+        button.onclick = () => {
+
+          showPopup(
+            "Hapus produk?",
+            "Produk ini akan dihapus dari katalog.",
+            "error",
+            {
+              text: "Hapus",
+
+              fn: async () => {
+
+                try {
+
+                  await deleteDoc(
+                    doc(
+                      db,
+                      "products",
+                      button.dataset.delete
+                    )
+                  );
+
+                  showPopup(
+                    "Berhasil",
+                    "Produk telah dihapus.",
+                    "success"
+                  );
+
+                  await loadAdmin();
+
+                } catch (err) {
+
+                  console.error(err);
+
+                  showPopup(
+                    "Gagal menghapus",
+                    "Periksa Firestore Rules lalu coba lagi.",
+                    "error"
+                  );
+                }
+              }
+            }
+          );
+
+        };
+
+      });
+
 
     /* ORDERS */
 
@@ -787,8 +756,7 @@ async function saveProduct(form, type) {
     ? {
         name: $("carName").value.trim(),
 
-        productId:
-          $("carProductId").value.trim(),
+        productId: $("carProductId").value.trim(),
 
         category:
           $("carCategory").value,
@@ -941,6 +909,20 @@ $("serviceForm").onsubmit = e => {
 
 $("carCancelEdit").onclick = resetCar;
 $("serviceCancelEdit").onclick = resetService;
+
+
+/* =========================
+   ADMIN PRODUCT SEARCH
+========================= */
+
+$("adminProductSearch").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase();
+
+  document.querySelectorAll("#cars tr, #services tr").forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = !q || text.includes(q) ? "" : "none";
+  });
+});
 
 
 /* =========================
